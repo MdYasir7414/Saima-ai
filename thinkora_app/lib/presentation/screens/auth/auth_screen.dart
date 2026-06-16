@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/widgets/gradient_button.dart';
+import '../../blocs/auth/auth_cubit.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -20,7 +20,6 @@ class _AuthScreenState extends State<AuthScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _usernameController = TextEditingController();
-  bool _isLoading = false;
   bool _passwordVisible = false;
 
   @override
@@ -38,44 +37,54 @@ class _AuthScreenState extends State<AuthScreen>
     super.dispose();
   }
 
-  Future<void> _signIn() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1200));
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(AppConstants.keyAuthToken, 'demo_token_12345');
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    context.go(AppRoutes.home);
+  void _signIn() {
+    context.read<AuthCubit>().login(
+          email: _emailController.text.trim().isEmpty
+              ? 'demo@thinkora.ai'
+              : _emailController.text.trim(),
+          password: _passwordController.text,
+        );
   }
 
-  Future<void> _signUp() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1200));
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(AppConstants.keyAuthToken, 'demo_token_12345');
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    context.go(AppRoutes.home);
+  void _signUp() {
+    context.read<AuthCubit>().register(
+          username: _usernameController.text.trim().isEmpty
+              ? 'thinker'
+              : _usernameController.text.trim(),
+          email: _emailController.text.trim().isEmpty
+              ? 'demo@thinkora.ai'
+              : _emailController.text.trim(),
+          password: _passwordController.text,
+        );
   }
 
-  Future<void> _googleSignIn() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1000));
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(AppConstants.keyAuthToken, 'google_token_12345');
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    context.go(AppRoutes.home);
+  void _googleSignIn() {
+    context.read<AuthCubit>().googleSignIn();
   }
 
   @override
   Widget build(BuildContext context) {
+    return BlocConsumer<AuthCubit, AuthState>(
+      listener: (context, state) {
+        if (state.status == AuthStatus.authenticated) {
+          context.go(AppRoutes.home);
+        } else if (state.status == AuthStatus.error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message ?? 'Authentication failed'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      },
+      builder: (context, state) {
+        final isLoading = state.isSubmitting;
+        return _buildScaffold(isLoading);
+      },
+    );
+  }
+
+  Widget _buildScaffold(bool isLoading) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -155,7 +164,7 @@ class _AuthScreenState extends State<AuthScreen>
                       emailController: _emailController,
                       passwordController: _passwordController,
                       onSignIn: _signIn,
-                      isLoading: _isLoading,
+                      isLoading: isLoading,
                       passwordVisible: _passwordVisible,
                       onTogglePassword: () =>
                           setState(() => _passwordVisible = !_passwordVisible),
@@ -165,7 +174,7 @@ class _AuthScreenState extends State<AuthScreen>
                       passwordController: _passwordController,
                       usernameController: _usernameController,
                       onSignUp: _signUp,
-                      isLoading: _isLoading,
+                      isLoading: isLoading,
                       passwordVisible: _passwordVisible,
                       onTogglePassword: () =>
                           setState(() => _passwordVisible = !_passwordVisible),

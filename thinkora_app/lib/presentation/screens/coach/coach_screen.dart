@@ -1,23 +1,9 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/widgets/gradient_button.dart';
-
-class CoachMessage {
-  final String content;
-  final bool isCoach;
-  final DateTime timestamp;
-  final String? suggestion;
-
-  const CoachMessage({
-    required this.content,
-    required this.isCoach,
-    required this.timestamp,
-    this.suggestion,
-  });
-}
+import '../../blocs/coach/coach_cubit.dart';
 
 class CoachScreen extends StatefulWidget {
   const CoachScreen({super.key});
@@ -29,23 +15,6 @@ class CoachScreen extends StatefulWidget {
 class _CoachScreenState extends State<CoachScreen> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _inputController = TextEditingController();
-  bool _isTyping = false;
-
-  final List<CoachMessage> _messages = [
-    CoachMessage(
-      content:
-          'Hello! I\'m Aura, your personal AI cognitive coach. 🧠\n\nI\'ve analyzed your training data and have some insights for you today.',
-      isCoach: true,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
-    ),
-    CoachMessage(
-      content:
-          '📊 Your Performance Summary:\n\n• Your strongest dimension is **Mathematics** (TCI 1650)\n• Your creativity score (1390) has room to grow\n• You\'ve maintained a 7-day streak — excellent!\n\nRecommendation: Focus on Creativity Realm challenges this week to achieve a more balanced cognitive profile.',
-      isCoach: true,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
-      suggestion: 'Train Creativity Realm',
-    ),
-  ];
 
   final List<String> _quickReplies = [
     'What should I train today?',
@@ -54,52 +23,11 @@ class _CoachScreenState extends State<CoachScreen> {
     'Explain my TCI score',
   ];
 
-  Future<void> _sendMessage(String text) async {
+  void _sendMessage(String text) {
     if (text.trim().isEmpty) return;
-
-    setState(() {
-      _messages.add(CoachMessage(
-        content: text,
-        isCoach: false,
-        timestamp: DateTime.now(),
-      ));
-      _isTyping = true;
-    });
+    context.read<CoachCubit>().send(text);
     _inputController.clear();
     _scrollToBottom();
-
-    // Simulate AI response
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    if (!mounted) return;
-
-    final response = _generateResponse(text);
-    setState(() {
-      _isTyping = false;
-      _messages.add(CoachMessage(
-        content: response,
-        isCoach: true,
-        timestamp: DateTime.now(),
-      ));
-    });
-    _scrollToBottom();
-  }
-
-  String _generateResponse(String input) {
-    final lower = input.toLowerCase();
-    if (lower.contains('memory') || lower.contains('remember')) {
-      return '💎 **Improving Memory**\n\nHere\'s your personalized memory training plan:\n\n1. **Spaced Repetition** — Review information at increasing intervals\n2. **Memory Palace** — Associate information with vivid locations\n3. **Chunking** — Group information into meaningful units\n\nI recommend starting with the Memory Realm Level 3–5 challenges. They\'re calibrated to your current score of 1480.\n\nShall I queue these challenges for your next session?';
-    }
-    if (lower.contains('weak') || lower.contains('weakness')) {
-      return '🔍 **Your Cognitive Gaps**\n\nBased on your training history:\n\n**Top 3 areas to improve:**\n1. Creativity (1390) — 157 points below your overall average\n2. Learning Speed (1470) — Slightly below average\n3. Memory (1480) — Close to average, can be pushed higher\n\n**Action plan:**\n• 3 Creativity challenges per day\n• 2 Memory challenges\n• 1 cross-domain challenge\n\nThis balanced approach will raise your overall TCI by approximately 80–120 points in 2 weeks.';
-    }
-    if (lower.contains('today') || lower.contains('train')) {
-      return '⚡ **Today\'s Training Plan**\n\nBased on your progress and energy patterns:\n\n**Morning (10 min)**\n• 2× Logic puzzles (warm-up)\n• 1× Pattern recognition\n\n**Afternoon (8 min)**\n• 2× Creativity challenges\n• 1× Memory sequence\n\n**Total:** 5 challenges, ~150 XP, ~+12 TCI\n\nThis will extend your streak to 8 days and push your overall TCI past 1550. Ready to start?';
-    }
-    if (lower.contains('tci') || lower.contains('score') || lower.contains('rating')) {
-      return '📈 **Your TCI Explained**\n\nYour current TCI of **1547** places you in the **Intermediate** tier — top 28% globally for your age group.\n\nYour TCI updates after every challenge using an Elo-style algorithm that accounts for:\n• Challenge difficulty\n• Time taken\n• Accuracy\n• Consistency\n\n**To reach Advanced (TCI 2000):**\n• ~453 points needed\n• Estimated time: 6–8 weeks at current pace\n• Key: focus on harder challenges, not just volume\n\nWant a detailed roadmap to TCI 2000?';
-    }
-    return '🤔 Great question! I\'m analyzing your cognitive profile to give you the most personalized advice.\n\nBased on your recent performance across 342 challenges, I can see you\'re consistently strong in analytical tasks but sometimes rush creative problems.\n\nMy recommendation: slow down on open-ended challenges and explore multiple approaches before committing to an answer. This will strengthen your divergent thinking.\n\nWould you like me to explain any specific aspect of your cognitive profile?';
   }
 
   void _scrollToBottom() {
@@ -178,106 +106,117 @@ class _CoachScreenState extends State<CoachScreen> {
           child: Divider(color: AppColors.border, height: 1),
         ),
       ),
-      body: Column(
-        children: [
-          // Messages list
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(20),
-              itemCount: _messages.length + (_isTyping ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == _messages.length) {
-                  return _TypingIndicator();
-                }
-                return _ChatBubble(
-                  message: _messages[index],
-                  onSuggestionTap: (s) => _sendMessage(s),
-                );
-              },
-            ),
-          ),
-          // Quick replies
-          if (_messages.length <= 3)
-            SizedBox(
-              height: 48,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _quickReplies.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () => _sendMessage(_quickReplies[index]),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.card,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                      ),
-                      child: Text(
-                        _quickReplies[index],
-                        style: const TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+      body: BlocConsumer<CoachCubit, CoachState>(
+        listener: (context, state) {
+          if (!state.isTyping && state.messages.isNotEmpty) {
+            _scrollToBottom();
+          }
+        },
+        builder: (context, state) {
+          return Column(
+            children: [
+              // Messages list
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(20),
+                  itemCount: state.messages.length + (state.isTyping ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == state.messages.length) {
+                      return const _TypingIndicator();
+                    }
+                    return _ChatBubble(
+                      message: state.messages[index],
+                      onSuggestionTap: (s) => _sendMessage(s),
+                    );
+                  },
+                ),
               ),
-            ),
-          const SizedBox(height: 8),
-          // Input
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              border: Border(top: BorderSide(color: AppColors.border)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _inputController,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    maxLines: null,
-                    decoration: InputDecoration(
-                      hintText: 'Ask your AI coach anything...',
-                      hintStyle: const TextStyle(color: AppColors.textMuted),
-                      filled: true,
-                      fillColor: AppColors.card,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
+              // Quick replies — show only at start of conversation
+              if (state.messages.length <= 3)
+                SizedBox(
+                  height: 48,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _quickReplies.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      return GestureDetector(
+                        onTap: () => _sendMessage(_quickReplies[index]),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.card,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: AppColors.primary.withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            _quickReplies[index],
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 8),
+              // Input
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(top: BorderSide(color: AppColors.border)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _inputController,
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        maxLines: null,
+                        decoration: InputDecoration(
+                          hintText: 'Ask your AI coach anything...',
+                          hintStyle:
+                              const TextStyle(color: AppColors.textMuted),
+                          filled: true,
+                          fillColor: AppColors.card,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                        ),
+                        onSubmitted: _sendMessage,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
                     ),
-                    onSubmitted: _sendMessage,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: () => _sendMessage(_inputController.text),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: AppColors.primaryGradient,
-                      shape: BoxShape.circle,
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () => _sendMessage(_inputController.text),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.send_rounded,
+                            color: Colors.white, size: 20),
+                      ),
                     ),
-                    child: const Icon(Icons.send_rounded,
-                        color: Colors.white, size: 20),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -381,6 +320,8 @@ class _ChatBubble extends StatelessWidget {
 }
 
 class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator();
+
   @override
   Widget build(BuildContext context) {
     return Row(

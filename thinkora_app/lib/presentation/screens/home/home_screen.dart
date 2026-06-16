@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/widgets/tci_badge.dart';
 import '../../../data/models/realm_model.dart';
 import '../../../data/models/user_model.dart';
-import '../../../data/models/challenge_model.dart';
+import '../../blocs/user/user_cubit.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,48 +17,31 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Demo data
-  final _user = UserModel(
-    id: 'u1',
-    username: 'thinkmaster',
-    email: 'user@thinkora.ai',
-    displayName: 'Think Master',
-    age: 22,
-    ageGroup: 'pioneer',
-    country: 'US',
-    tciRating: const TCIRating(
-      overall: 1547,
-      logic: 1620,
-      memory: 1480,
-      focus: 1590,
-      strategy: 1510,
-      mathematics: 1650,
-      creativity: 1390,
-      problemSolving: 1560,
-      learningSpeed: 1470,
-    ),
-    stats: UserStats(
-      totalXp: 12450,
-      level: 13,
-      currentStreak: 7,
-      longestStreak: 21,
-      challengesCompleted: 342,
-      challengesAttempted: 398,
-      battlesWon: 28,
-      battlesLost: 14,
-      totalPlaytimeMinutes: 1820,
-      lastCompletedAt: DateTime.now().subtract(const Duration(hours: 5)),
-    ),
-    progress: UserProgress.initial(),
-    achievementIds: const ['streak_7', 'challenges_100', 'battles_1'],
-    friendIds: const [],
-    isParentAccount: false,
-    createdAt: DateTime.now().subtract(const Duration(days: 45)),
-    lastActiveAt: DateTime.now(),
-  );
+  @override
+  void initState() {
+    super.initState();
+    // Ensure the global user is populated (cold launch with a saved session).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cubit = context.read<UserCubit>();
+      if (!cubit.state.hasUser) cubit.refresh();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<UserCubit>().state.user;
+    if (user == null) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+    return _buildContent(context, user);
+  }
+
+  Widget _buildContent(BuildContext context, UserModel user) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: CustomScrollView(
@@ -120,13 +104,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const SizedBox(height: 8),
                   // Welcome section
-                  _WelcomeSection(user: _user),
+                  _WelcomeSection(user: user),
                   const SizedBox(height: 20),
                   // Daily quest card
-                  _DailyQuestCard(user: _user),
+                  _DailyQuestCard(user: user),
                   const SizedBox(height: 20),
                   // TCI Overview
-                  _TCIOverviewCard(rating: _user.tciRating),
+                  _TCIOverviewCard(rating: user.tciRating),
                   const SizedBox(height: 20),
                   // Quick challenges
                   _QuickChallengesSection(),
@@ -135,7 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   _RealmExplorerSection(),
                   const SizedBox(height: 20),
                   // Stats row
-                  _StatsRow(stats: _user.stats),
+                  _StatsRow(stats: user.stats),
                   const SizedBox(height: 100),
                 ],
               ),

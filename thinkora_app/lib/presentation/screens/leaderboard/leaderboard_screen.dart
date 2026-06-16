@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/router/app_router.dart';
 import '../../../data/models/leaderboard_model.dart';
+import '../../blocs/leaderboard/leaderboard_cubit.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -15,7 +15,6 @@ class LeaderboardScreen extends StatefulWidget {
 class _LeaderboardScreenState extends State<LeaderboardScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  int _selectedScope = 0;
 
   static const List<String> _scopes = [
     'Global',
@@ -24,42 +23,23 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     'Age Group',
   ];
 
-  final List<LeaderboardEntry> _entries = List.generate(50, (i) {
-    final names = [
-      'NeuralStrike',
-      'LogicMaster',
-      'ThinkTitan',
-      'BrainWave',
-      'CogEdge',
-      'MindForge',
-      'IQBlast',
-      'StratosX',
-      'PuzzleKing',
-      'ReasonBot',
-    ];
-    final countries = ['US', 'IN', 'GB', 'DE', 'JP', 'KR', 'BR', 'CA', 'AU', 'FR'];
-    return LeaderboardEntry(
-      rank: i + 1,
-      userId: 'u$i',
-      username: '${names[i % names.length]}${i + 1}',
-      displayName: '${names[i % names.length]} ${i + 1}',
-      country: countries[i % countries.length],
-      tciOverall: 3200 - (i * 42),
-      tciTier: i < 3 ? 'Grandmaster' : i < 10 ? 'Master' : 'Expert',
-      weeklyXp: 8500 - (i * 120),
-      currentStreak: 45 - i,
-      challengesCompleted: 1200 - (i * 18),
-      isCurrentUser: i == 12,
-    );
-  });
+  static const List<String> _scopeKeys = [
+    'global',
+    'country',
+    'weekly',
+    'age_group',
+  ];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: _scopes.length, vsync: this);
     _tabController.addListener(() {
-      setState(() => _selectedScope = _tabController.index);
+      if (!_tabController.indexIsChanging) {
+        context.read<LeaderboardCubit>().load(_scopeKeys[_tabController.index]);
+      }
     });
+    context.read<LeaderboardCubit>().load('global');
   }
 
   @override
@@ -70,7 +50,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final myEntry = _entries.firstWhere((e) => e.isCurrentUser);
+    final state = context.watch<LeaderboardCubit>().state;
+    final entries = state.data?.entries ?? const <LeaderboardEntry>[];
+    final myEntry = state.data?.currentUserEntry ??
+        (entries.isNotEmpty
+            ? entries.firstWhere(
+                (e) => e.isCurrentUser,
+                orElse: () => entries.first,
+              )
+            : null);
+    final isLoading =
+        state.status == LbStatus.loading || state.status == LbStatus.initial;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -123,16 +113,24 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               ),
             ),
           ),
+          if (isLoading && entries.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
+            )
+          else
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
                   // Top 3 podium
-                  _Podium(entries: _entries.take(3).toList()),
+                  _Podium(entries: entries.take(3).toList()),
                   const SizedBox(height: 24),
                   // My rank card
-                  _MyRankCard(entry: myEntry),
+                  if (myEntry != null) _MyRankCard(entry: myEntry),
                   const SizedBox(height: 20),
                   // List header
                   const Row(
@@ -173,7 +171,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                   ),
                   const SizedBox(height: 8),
                   // Entries 4+
-                  ...(_entries.skip(3).take(30).toList().asMap().entries.map(
+                  ...(entries.skip(3).take(30).toList().asMap().entries.map(
                         (entry) => _LeaderboardRow(
                           leaderboardEntry: entry.value,
                           index: entry.key,

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
+import '../../blocs/auth/auth_cubit.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -47,8 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirmed == true && mounted) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(AppConstants.keyAuthToken);
+      await context.read<AuthCubit>().logout();
       if (!mounted) return;
       context.go(AppRoutes.auth);
     }

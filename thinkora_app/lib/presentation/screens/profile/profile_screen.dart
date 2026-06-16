@@ -1,61 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/widgets/tci_badge.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/achievement_model.dart';
+import '../../blocs/user/user_cubit.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
-  final _user = const UserModel(
-    id: 'u1',
-    username: 'thinkmaster',
-    email: 'user@thinkora.ai',
-    displayName: 'Think Master',
-    age: 22,
-    ageGroup: 'pioneer',
-    country: 'US',
-    tciRating: TCIRating(
-      overall: 1547,
-      logic: 1620,
-      memory: 1480,
-      focus: 1590,
-      strategy: 1510,
-      mathematics: 1650,
-      creativity: 1390,
-      problemSolving: 1560,
-      learningSpeed: 1470,
-    ),
-    stats: UserStats(
-      totalXp: 12450,
-      level: 13,
-      currentStreak: 7,
-      longestStreak: 21,
-      challengesCompleted: 342,
-      challengesAttempted: 398,
-      battlesWon: 28,
-      battlesLost: 14,
-      totalPlaytimeMinutes: 1820,
-    ),
-    progress: UserProgress(
-      realmProgress: {},
-      completedDailyQuests: [],
-      dailyQuestCompletedToday: false,
-    ),
-    achievementIds: ['streak_7', 'challenges_100', 'battles_1'],
-    friendIds: [],
-    isParentAccount: false,
-    createdAt: _dummyDate,
-    lastActiveAt: _dummyDate,
-  );
-
-  static final _dummyDate = DateTime(2026, 1, 1);
-
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<UserCubit>().state.user;
+    if (user == null) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+    return _build(context, user);
+  }
+
+  Widget _build(BuildContext context, UserModel user) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: CustomScrollView(
@@ -91,13 +62,13 @@ class ProfileScreen extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 8),
-                  _ProfileHeader(user: _user),
+                  _ProfileHeader(user: user),
                   const SizedBox(height: 20),
-                  _TCIFullCard(rating: _user.tciRating),
+                  _TCIFullCard(rating: user.tciRating),
                   const SizedBox(height: 20),
-                  _StatsGrid(stats: _user.stats),
+                  _StatsGrid(stats: user.stats),
                   const SizedBox(height: 20),
-                  _RecentAchievements(achievementIds: _user.achievementIds),
+                  _RecentAchievements(achievementIds: user.achievementIds),
                   const SizedBox(height: 20),
                   _ActivityHeatmap(),
                   const SizedBox(height: 80),

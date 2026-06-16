@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/widgets/gradient_button.dart';
 import '../../../data/models/challenge_model.dart';
+import '../../blocs/user/user_cubit.dart';
 
 class ChallengeScreen extends StatefulWidget {
   final String challengeId;
@@ -135,7 +137,18 @@ class _ChallengeScreenState extends State<ChallengeScreen>
         _challenge.content.options!
             .any((o) => o.id == answerId && o.isCorrect);
 
+    final xpEarned = isCorrect ? _challenge.xpReward : 5;
+    final tciChange = isCorrect ? _challenge.tciDelta : -3;
+
     setState(() => _isAnswered = true);
+
+    // Apply progress optimistically so the home screen reflects the result immediately
+    context.read<UserCubit>().applyResult(
+          isCorrect: isCorrect,
+          xpEarned: xpEarned,
+          tciChange: tciChange,
+          dimensionChanges: _challenge.dimensionDeltas,
+        );
 
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (!mounted) return;
@@ -143,8 +156,8 @@ class _ChallengeScreenState extends State<ChallengeScreen>
         AppRoutes.challengeResult,
         extra: {
           'isCorrect': isCorrect,
-          'xpEarned': isCorrect ? _challenge.xpReward : 5,
-          'tciChange': isCorrect ? _challenge.tciDelta : -3,
+          'xpEarned': xpEarned,
+          'tciChange': tciChange,
           'timeSpent': _challenge.timeLimitSeconds - _timeRemaining,
           'challenge': _challenge,
           'correctAnswer': _challenge.content.correctAnswer,
