@@ -17,7 +17,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
   late TabController _tabController;
   int _selectedPeriod = 0; // 0=Week, 1=Month
 
-  final _child = const UserModel(
+  final _child = UserModel(
     id: 'child1',
     username: 'youngthinkr',
     email: '',
@@ -25,7 +25,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
     age: 12,
     ageGroup: 'scholar',
     country: 'US',
-    tciRating: TCIRating(
+    tciRating: const TCIRating(
       overall: 820,
       logic: 880,
       memory: 790,
@@ -36,7 +36,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
       problemSolving: 840,
       learningSpeed: 780,
     ),
-    stats: UserStats(
+    stats: const UserStats(
       totalXp: 4200,
       level: 5,
       currentStreak: 4,
@@ -47,13 +47,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen>
       battlesLost: 8,
       totalPlaytimeMinutes: 380,
     ),
-    progress: UserProgress(
+    progress: const UserProgress(
       realmProgress: {},
       completedDailyQuests: [],
       dailyQuestCompletedToday: true,
     ),
-    achievementIds: ['streak_3', 'challenges_10'],
-    friendIds: [],
+    achievementIds: const ['streak_3', 'challenges_10'],
+    friendIds: const [],
     isParentAccount: false,
     parentId: 'parent1',
     createdAt: _d,
