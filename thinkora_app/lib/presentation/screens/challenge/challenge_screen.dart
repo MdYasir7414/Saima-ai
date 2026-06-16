@@ -7,6 +7,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/widgets/gradient_button.dart';
 import '../../../data/models/challenge_model.dart';
+import '../../../data/repositories/challenge_repository.dart';
 import '../../blocs/user/user_cubit.dart';
 
 class ChallengeScreen extends StatefulWidget {
@@ -27,89 +28,31 @@ class _ChallengeScreenState extends State<ChallengeScreen>
   bool _isAnswered = false;
   int _hintsUsed = 0;
   bool _showHint = false;
+  bool _isLoading = true;
 
-  // Demo challenge
-  late ChallengeModel _challenge;
+  ChallengeModel? _challenge;
 
   @override
   void initState() {
     super.initState();
-    _challenge = _generateDemoChallenge(widget.challengeId);
-    _timeRemaining = _challenge.timeLimitSeconds;
     _timerController = AnimationController(
       vsync: this,
-      duration: Duration(seconds: _challenge.timeLimitSeconds),
+      duration: const Duration(seconds: 60),
     );
-    _startTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadChallenge());
   }
 
-  ChallengeModel _generateDemoChallenge(String id) {
-    final challenges = {
-      'logic_quick_1': ChallengeModel(
-        id: 'logic_quick_1',
-        title: 'The Detective\'s Deduction',
-        description: 'A classic logic deduction puzzle',
-        type: ChallengeType.logicPuzzle,
-        difficulty: ChallengeDifficulty.intermediate,
-        realmId: 'logic',
-        content: ChallengeContent(
-          prompt:
-              'Alice, Bob, and Carol each have a different pet: a cat, a dog, and a bird.\n\n• Alice does not have the cat.\n• Bob does not have the dog.\n• Carol does not have the bird.\n• The person with the dog is not Alice.\n\nWho has the cat?',
-          options: const [
-            ChallengeOption(id: 'a', text: 'Alice', isCorrect: false),
-            ChallengeOption(id: 'b', text: 'Bob', isCorrect: true),
-            ChallengeOption(id: 'c', text: 'Carol', isCorrect: false),
-            ChallengeOption(id: 'd', text: 'Cannot be determined', isCorrect: false),
-          ],
-          correctAnswer: 'b',
-          explanation:
-              'From the clues: Alice has neither cat nor dog (clues 1 & 4), so Alice has the bird. Carol has neither bird nor... wait — Carol doesn\'t have the bird (clue 3), but Alice does. So Carol has cat or dog. Bob doesn\'t have the dog (clue 2), so Bob has the cat. Carol has the dog.',
-          hints: const [
-            'Start by eliminating what Alice cannot have.',
-            'Alice cannot have the cat AND cannot have the dog. What does that leave?',
-          ],
-        ),
-        timeLimitSeconds: 90,
-        xpReward: 30,
-        tciDelta: 8,
-        dimensionDeltas: const {'logic': 10, 'problem_solving': 6},
-        tags: const ['logic', 'deduction'],
-        ageGroup: 'pioneer',
-      ),
-      'math_quick_1': ChallengeModel(
-        id: 'math_quick_1',
-        title: 'The Missing Number',
-        description: 'Find the pattern and complete the sequence',
-        type: ChallengeType.patternRecognition,
-        difficulty: ChallengeDifficulty.beginner,
-        realmId: 'math',
-        content: ChallengeContent(
-          prompt:
-              'What comes next in this sequence?\n\n2, 6, 12, 20, 30, ?',
-          options: const [
-            ChallengeOption(id: 'a', text: '40', isCorrect: false),
-            ChallengeOption(id: 'b', text: '42', isCorrect: true),
-            ChallengeOption(id: 'c', text: '36', isCorrect: false),
-            ChallengeOption(id: 'd', text: '44', isCorrect: false),
-          ],
-          correctAnswer: 'b',
-          explanation:
-              'The pattern is n(n+1): 1×2=2, 2×3=6, 3×4=12, 4×5=20, 5×6=30, 6×7=42.',
-          hints: const [
-            'Look at the differences between consecutive numbers: 4, 6, 8, 10...',
-            'The differences increase by 2 each time.',
-          ],
-        ),
-        timeLimitSeconds: 60,
-        xpReward: 25,
-        tciDelta: 6,
-        dimensionDeltas: const {'mathematics': 10, 'pattern_recognition': 8},
-        tags: const ['math', 'patterns', 'sequences'],
-        ageGroup: 'pioneer',
-      ),
-    };
-
-    return challenges[id] ?? challenges['logic_quick_1']!;
+  Future<void> _loadChallenge() async {
+    final repo = context.read<ChallengeRepository>();
+    final challenge = await repo.getById(widget.challengeId);
+    if (!mounted) return;
+    setState(() {
+      _challenge = challenge;
+      _timeRemaining = challenge.timeLimitSeconds;
+      _timerController.duration = Duration(seconds: challenge.timeLimitSeconds);
+      _isLoading = false;
+    });
+    _startTimer();
   }
 
   void _startTimer() {
@@ -130,24 +73,24 @@ class _ChallengeScreenState extends State<ChallengeScreen>
   }
 
   void _submitAnswer(String? answerId) {
-    if (_isAnswered) return;
+    if (_isAnswered || _challenge == null) return;
     _timer?.cancel();
 
+    final challenge = _challenge!;
     final isCorrect = answerId != null &&
-        _challenge.content.options!
+        challenge.content.options!
             .any((o) => o.id == answerId && o.isCorrect);
 
-    final xpEarned = isCorrect ? _challenge.xpReward : 5;
-    final tciChange = isCorrect ? _challenge.tciDelta : -3;
+    final xpEarned = isCorrect ? challenge.xpReward : 5;
+    final tciChange = isCorrect ? challenge.tciDelta : -3;
 
     setState(() => _isAnswered = true);
 
-    // Apply progress optimistically so the home screen reflects the result immediately
     context.read<UserCubit>().applyResult(
           isCorrect: isCorrect,
           xpEarned: xpEarned,
           tciChange: tciChange,
-          dimensionChanges: _challenge.dimensionDeltas,
+          dimensionChanges: challenge.dimensionDeltas,
         );
 
     Future.delayed(const Duration(milliseconds: 1500), () {
@@ -158,11 +101,11 @@ class _ChallengeScreenState extends State<ChallengeScreen>
           'isCorrect': isCorrect,
           'xpEarned': xpEarned,
           'tciChange': tciChange,
-          'timeSpent': _challenge.timeLimitSeconds - _timeRemaining,
-          'challenge': _challenge,
-          'correctAnswer': _challenge.content.correctAnswer,
+          'timeSpent': challenge.timeLimitSeconds - _timeRemaining,
+          'challenge': challenge,
+          'correctAnswer': challenge.content.correctAnswer,
           'selectedAnswer': answerId,
-          'explanation': _challenge.content.explanation,
+          'explanation': challenge.content.explanation,
         },
       );
     });
@@ -177,6 +120,16 @@ class _ChallengeScreenState extends State<ChallengeScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading || _challenge == null) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+
+    final challenge = _challenge!;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -184,7 +137,7 @@ class _ChallengeScreenState extends State<ChallengeScreen>
           children: [
             // Header
             _ChallengeHeader(
-              challenge: _challenge,
+              challenge: challenge,
               timeRemaining: _timeRemaining,
               timerController: _timerController,
               onClose: () => context.pop(),
@@ -205,7 +158,7 @@ class _ChallengeScreenState extends State<ChallengeScreen>
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        _challenge.typeLabel.toUpperCase(),
+                        challenge.typeLabel.toUpperCase(),
                         style: const TextStyle(
                           color: AppColors.logicRealm,
                           fontSize: 11,
@@ -217,7 +170,7 @@ class _ChallengeScreenState extends State<ChallengeScreen>
                     const SizedBox(height: 14),
                     // Title
                     Text(
-                      _challenge.title,
+                      challenge.title,
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 22,
@@ -236,7 +189,7 @@ class _ChallengeScreenState extends State<ChallengeScreen>
                         border: Border.all(color: AppColors.border),
                       ),
                       child: Text(
-                        _challenge.content.prompt,
+                        challenge.content.prompt,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 16,
@@ -247,7 +200,7 @@ class _ChallengeScreenState extends State<ChallengeScreen>
                     ).animate(delay: 100.ms).fadeIn(duration: 400.ms),
                     const SizedBox(height: 24),
                     // Hint section
-                    if (_challenge.content.hints != null && _hintsUsed == 0)
+                    if (challenge.content.hints != null && _hintsUsed == 0)
                       TextButton.icon(
                         onPressed: () {
                           setState(() {
@@ -265,7 +218,7 @@ class _ChallengeScreenState extends State<ChallengeScreen>
                           ),
                         ),
                       ),
-                    if (_showHint && _challenge.content.hints != null)
+                    if (_showHint && challenge.content.hints != null)
                       Container(
                         padding: const EdgeInsets.all(14),
                         margin: const EdgeInsets.only(bottom: 16),
@@ -282,8 +235,7 @@ class _ChallengeScreenState extends State<ChallengeScreen>
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                _challenge.content
-                                    .hints![_hintsUsed - 1],
+                                challenge.content.hints![_hintsUsed - 1],
                                 style: const TextStyle(
                                   color: AppColors.warning,
                                   fontSize: 13,
@@ -295,7 +247,7 @@ class _ChallengeScreenState extends State<ChallengeScreen>
                         ),
                       ).animate().fadeIn(duration: 300.ms),
                     // Answer options
-                    if (_challenge.content.options != null) ...[
+                    if (challenge.content.options != null) ...[
                       const Text(
                         'Choose your answer:',
                         style: TextStyle(
@@ -305,7 +257,7 @@ class _ChallengeScreenState extends State<ChallengeScreen>
                         ),
                       ),
                       const SizedBox(height: 12),
-                      ...(_challenge.content.options!.asMap().entries.map(
+                      ...(challenge.content.options!.asMap().entries.map(
                             (entry) => _AnswerOption(
                               option: entry.value,
                               index: entry.key,
